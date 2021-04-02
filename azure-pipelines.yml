@@ -1,10 +1,3 @@
-# Node.js with Angular
-    
-
-# Build a Node.js project that uses Angular.
-# Add steps that analyze code, save build artifacts, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
-
 trigger:
 - master
 
@@ -29,36 +22,40 @@ steps:
   inputs:
     secureFile: 'xcode10.mobileprovision'
 
+- task: InstallAppleCertificate@2
+  inputs:
+    certSecureFile: 'Certificates.p12'
+    certPwd: 'secret'
+    keychain: 'temp'
+  displayName: 'Installation of P12 Certificate'
+
+- task: InstallAppleProvisioningProfile@1
+  inputs:
+    provisioningProfileLocation: 'secureFiles'
+    provProfileSecureFile: 'xcode10.mobileprovision'
+  displayName: 'Installation Provisioning Profile'
+
 - script: |
-    npm install -g @angular/cli
     npm install
-    #npm run ionic:build
   displayName: 'npm install and build'
 
 - script: |
     npm install -g cordova@8.1.2
-  displayName: 'Installation of cordova 8.1.2'
-
-- script: |
-    cordova plugin add cordova-plugin-appcenter-analytics cordova-plugin-appcenter-crashes
-  displayName: 'Adding cordova plugins for data analytics'
-
-- script: |
     cordova platform add android@7.1.1
+  displayName: 'Installation of cordova and Android platform'
+
+- script: |
     cordova build android --release
-  displayName: 'Generating Android Release App'
+    cordova build android --debug
+  displayName: 'Generating Android Apps'
 
 - task: AndroidSigning@3
   inputs:
-    apkFiles: '**/*.apk'
+    apkFiles: '**/*signed.apk'
     apksignerKeystoreFile: 'debug.keystore'
     apksignerKeystorePassword: 'android'
     apksignerKeystoreAlias: 'androiddebugkey'
     apksignerKeyPassword: 'android'
-
-- script: |
-    cordova build android --debug
-  displayName: 'Generating Android Debug App'
 
 - task: CopyFiles@2
   inputs:
@@ -75,87 +72,18 @@ steps:
     cordova platform add ios@5.0.0
   displayName: 'Adding IOS Platoform'
 
-- task: InstallAppleCertificate@2
+- script: |
+    cordova build ios --release --device --buildFlag='-UseModernBuildSystem=0'
+  displayName: 'Generating IOS App'
+
+- task: CmdLine@2
   inputs:
-    certSecureFile: 'Certificates.p12'
-    certPwd: 'secret'
-    keychain: 'temp'
-  displayName: 'Installation of P12 Certificate'
-
-- task: InstallAppleProvisioningProfile@1
-  inputs:
-    provisioningProfileLocation: 'secureFiles'
-    provProfileSecureFile: 'xcode10.mobileprovision'
-  displayName: 'Installation Provisioning Profile'
-
-- script: |
-    cordova build ios --release
-  displayName: 'Generating IOS Release App'
-
-- script: |
-    cordova build ios --debug
-  displayName: 'Generating IOS Debug App'
-
-- script: |
-    mkdir Payload
+    script: 'rm -f $(Agent.WorkFolder)/platforms/ios/build/device/HelloWorld.app'
 
 - task: CopyFiles@2
   inputs:
-    SourceFolder: '$(Agent.BuildDirectory)'
-    Contents: '**/HelloWorld.app/**'
-    TargetFolder: '$(Agent.BuildDirectory)/Payload/'
-    CleanTargetFolder: false
-    overWrite: false
-    flattenFolders: true
-    preserveTimestamp: true
-  displayName: 'Copying IOS app contents to payload temp folder'
-
-- script: |
-    zip -r -s 64 Payload.zip Payload/
-    mv Payload.zip HelloWorld.ipa
-  displayName: 'Generating IPA file'
-
-# - script: |
-#     sudo gem install fastlane
-#     fastlane run opt_out_usage
-#   displayName: 'Installing fastlane and performing opt_out_usage'
-
-
-# - task: DownloadSecureFile@1
-#   name: P12Certificate1
-#   displayName: 'Download P12 Secure Certificate'
-#   inputs:
-#     secureFile: 'Certificates.p12'
-
-# - task: DownloadSecureFile@1
-#   name: ProvisionCertificate1
-#   displayName: 'Download Mobile Provision Certificate'
-#   inputs:
-#     secureFile: 'xcode10.mobileprovision'
-
-# - task: IpaResign@1
-#   inputs:
-#     ipaPath: '**/*.ipa'
-#     signFileP12Path: '$(P12Certificate1.secureFilePath)'
-#     signFileP12Password: 'secret'
-#     provFileProfilePath: '$(ProvisionCertificate1.secureFilePath)'
-#     installFastlane: False
-
-- task: CopyFiles@2
-  inputs:
-    SourceFolder: '$(Agent.BuildDirectory)'
-    Contents: '**/HelloWorld.app/**'
-    TargetFolder: '$(Build.ArtifactStagingDirectory)'
-    CleanTargetFolder: false
-    overWrite: false
-    flattenFolders: false
-    preserveTimestamp: true
-  displayName: 'Copying IOS App as Artifact'
-
-- task: CopyFiles@2
-  inputs:
-    SourceFolder: '$(Agent.BuildDirectory)'
-    Contents: '**/*.ipa'
+    SourceFolder: '$(Agent.WorkFolder)'
+    Contents: 'platforms/ios/build/device/HelloWorld.ipa'
     TargetFolder: '$(Build.ArtifactStagingDirectory)'
     CleanTargetFolder: false
     overWrite: false
